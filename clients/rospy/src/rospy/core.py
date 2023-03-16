@@ -51,6 +51,7 @@ import threading
 import time
 import traceback
 import types
+from typing import Callable, Any, TypeVar, Tuple, Optional, Dict
 
 try:
     import urllib.parse as urlparse #Python 3.x
@@ -83,11 +84,15 @@ _logger = logging.getLogger("rospy.core")
 _TIMEOUT_SHUTDOWN_JOIN = 5.
 
 import warnings
-def deprecated(func):
+
+# define variadic type
+T = TypeVar("T")
+
+def deprecated(func: Callable[[Any], T]) -> Callable[[Any], T]:
     """This is a decorator which can be used to mark functions
     as deprecated. It will result in a warning being emitted
     when the function is used."""
-    def newFunc(*args, **kwargs):
+    def newFunc(*args: Any, **kwargs: Any) -> T:
         warnings.warn("Call to deprecated function %s." % func.__name__,
                       category=DeprecationWarning, stacklevel=2)
         return func(*args, **kwargs)
@@ -101,7 +106,7 @@ def deprecated(func):
 
 ROSRPC = "rosrpc://"
 
-def parse_rosrpc_uri(uri):
+def parse_rosrpc_uri(uri: str) -> Tuple[str, int]:
     """
     utility function for parsing ROS-RPC URIs
     @param uri: ROSRPC URI
@@ -132,16 +137,16 @@ _rospy_logger = logging.getLogger("rospy.internal")
 # other sorts of information that scare users but are essential for
 # debugging
 
-def rospydebug(msg, *args, **kwargs):
+def rospydebug(msg: object, *args: object, **kwargs: Any):
     """Internal rospy client library debug logging"""
     _rospy_logger.debug(msg, *args, **kwargs)
-def rospyinfo(msg, *args, **kwargs):
+def rospyinfo(msg: object, *args: object, **kwargs: Any):
     """Internal rospy client library debug logging"""
     _rospy_logger.info(msg, *args, **kwargs)
-def rospyerr(msg, *args, **kwargs):
+def rospyerr(msg: object, *args: object, **kwargs: Any):
     """Internal rospy client library error logging"""
     _rospy_logger.error(msg, *args, **kwargs)
-def rospywarn(msg, *args, **kwargs):
+def rospywarn(msg: object, *args: object, **kwargs: Any):
     """Internal rospy client library warn logging"""
     _rospy_logger.warning(msg, *args, **kwargs)
 
@@ -155,47 +160,53 @@ def _frame_to_caller_id(frame):
     return pickle.dumps(caller_id)
 
 
-def _base_logger(msg, args, kwargs, throttle=None,
-                 throttle_identical=False, level=None, once=False):
+def _base_logger(msg: object, args: Tuple[object, ...], kwargs: Dict[str, Any], throttle=None,
+                 throttle_identical: bool=False, level: str="", once: bool=False):
 
     rospy_logger = logging.getLogger('rosout')
-    name = kwargs.pop('logger_name', None)
+    name: Optional[str] = kwargs.pop('logger_name', None)
     if name:
         rospy_logger = rospy_logger.getChild(name)
     logfunc = getattr(rospy_logger, level)
 
     if once:
-        caller_id = _frame_to_caller_id(inspect.currentframe().f_back.f_back)
+        current_frame = inspect.currentframe()
+        assert current_frame is not None and current_frame.f_back is not None and current_frame.f_back.f_back is not None
+        caller_id = _frame_to_caller_id(current_frame.f_back.f_back)
         if _logging_once(caller_id):
             logfunc(msg, *args, **kwargs)
     elif throttle_identical:
-        caller_id = _frame_to_caller_id(inspect.currentframe().f_back.f_back)
+        current_frame = inspect.currentframe()
+        assert current_frame is not None and current_frame.f_back is not None and current_frame.f_back.f_back is not None
+        caller_id = _frame_to_caller_id(current_frame.f_back.f_back)
         throttle_elapsed = False
         if throttle is not None:
             throttle_elapsed = _logging_throttle(caller_id, throttle)
         if _logging_identical(caller_id, msg) or throttle_elapsed:
             logfunc(msg, *args, **kwargs)
     elif throttle:
-        caller_id = _frame_to_caller_id(inspect.currentframe().f_back.f_back)
+        current_frame = inspect.currentframe()
+        assert current_frame is not None and current_frame.f_back is not None and current_frame.f_back.f_back is not None
+        caller_id = _frame_to_caller_id(current_frame.f_back.f_back)
         if _logging_throttle(caller_id, throttle):
             logfunc(msg, *args, **kwargs)
     else:
         logfunc(msg, *args, **kwargs)
 
 
-def logdebug(msg, *args, **kwargs):
+def logdebug(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, level='debug')
 
-def loginfo(msg, *args, **kwargs):
+def loginfo(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, level='info')
 
-def logwarn(msg, *args, **kwargs):
+def logwarn(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, level='warning')
 
-def logerr(msg, *args, **kwargs):
+def logerr(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, level='error')
 
-def logfatal(msg, *args, **kwargs):
+def logfatal(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, level='critical')
 
 logout = loginfo # alias deprecated name
@@ -207,7 +218,7 @@ class LoggingThrottle(object):
 
     last_logging_time_table = {}
 
-    def __call__(self, caller_id, period):
+    def __call__(self, caller_id: str, period: float):
         """Do logging specified message periodically.
 
         - caller_id (str): Id to identify the caller
@@ -304,19 +315,19 @@ class LoggingOnce(object):
 _logging_once = LoggingOnce()
 
 
-def logdebug_once(msg, *args, **kwargs):
+def logdebug_once(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, once=True, level='debug')
 
-def loginfo_once(msg, *args, **kwargs):
+def loginfo_once(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, once=True, level='info')
 
-def logwarn_once(msg, *args, **kwargs):
+def logwarn_once(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, once=True, level='warn')
 
-def logerr_once(msg, *args, **kwargs):
+def logerr_once(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, once=True, level='error')
 
-def logfatal_once(msg, *args, **kwargs):
+def logfatal_once(msg: object, *args: object, **kwargs: Any):
     _base_logger(msg, args, kwargs, once=True, level='critical')
 
 
@@ -339,7 +350,7 @@ def deprecated(func):
     return newFunc
 
 @deprecated
-def get_ros_root(required=False, env=None):
+def get_ros_root(required: bool=False, env: Optional[Dict[Any, Any]]=None):
     """
     Get the value of ROS_ROOT.
     @param env: override environment dictionary
